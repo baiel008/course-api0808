@@ -1,11 +1,9 @@
-from fastapi import HTTPException, Depends, APIRouter
-from pygments.lexer import default
-
-from course_app.db.models import Course
+from fastapi import HTTPException, Depends, APIRouter, Query
+from course_app.db.models import Course, StatusChoices, TypeChoices
 from course_app.db.schema import CourseCreateSchema, CourseOutSchema
 from course_app.db.database import SessionLocal
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 
 
@@ -39,8 +37,34 @@ async def search_course(course_name: str, db: Session =Depends(get_db)):
 
 
 @course_router.get('/', response_model=List[CourseOutSchema])
-async def course_list(db: Session =Depends(get_db)):
-    return db.query(Course).all()
+async def course_list(min_price: Optional[float] = Query(None, alias='price[from]'),
+                      max_price: Optional[float] =  Query(None, alias='price[to]'),
+                      level: Optional[StatusChoices] = None,
+                      type_course: Optional[TypeChoices] = None,
+                      db: Session =Depends(get_db)):
+
+
+    query = db.query(Course)
+
+    if min_price is not  None:
+        query = query.filter(Course.price >= min_price)
+
+    if max_price is not None:
+        query = query.filter(Course.price <= max_price)
+
+    if level:
+        query = query.filter(Course.level == level)
+
+    if type_course:
+        query = query.filter(Course.type == type_course)
+
+    courses = query.all()
+
+    if not courses:
+        raise HTTPException(status_code=404, detail='Course not found')
+
+    return courses
+
 
 
 @course_router.get('/{course_id}', response_model=List[CourseOutSchema])
